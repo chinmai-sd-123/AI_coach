@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app import models, schemas
 from app.utils.dependencies import get_current_user
-
+from app.services.habit_service import calculate_streak
 router = APIRouter(prefix="/habits", tags=["Habits"])
 
 
@@ -70,3 +70,24 @@ def log_habit(
     db.commit()
 
     return {"message": "Habit logged successfully"}
+
+
+# GET HABIT STREAK
+@router.get("/{habit_id}/streak")
+def get_habit_streak(
+    habit_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user)
+):
+    habit = db.query(models.Habit).filter(
+        models.Habit.id == habit_id,
+        models.Habit.user_id == user_id
+    ).first()
+
+    if not habit:
+        raise HTTPException(status_code=404, detail="Habit not found")
+
+    logs = db.query(models.HabitLog).filter(models.HabitLog.habit_id == habit_id).all()
+    streak = calculate_streak(logs)
+
+    return {"habit_id": habit_id, "streak": streak}

@@ -25,7 +25,7 @@ def create_goal(
     new_goal = models.Goal(
         title=goal.title,
         deadline=goal.deadline,
-        user_id=user_id
+        user_id=user_id   # ✅ VERY IMPORTANT
     )
 
     db.add(new_goal)
@@ -41,7 +41,9 @@ def get_goals(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user)
 ):
-    goals = db.query(models.Goal).filter(models.Goal.user_id == user_id).all()
+    goals = db.query(models.Goal).filter(
+        models.Goal.user_id == user_id   # ✅ FIX
+    ).all()
     return goals
 
 

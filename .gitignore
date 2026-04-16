@@ -36,3 +36,7 @@ Thumbs.db
 # Local tooling folders
 .zencoder/
 .zenflow/
+.postman/
+postman/globals/
+frontend/.expo/
+frontend/node_modules/
