@@ -52,7 +52,7 @@ const handleAddGoal = async () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Your Goals ðŸŽ¯</Text>
+      <Text style={styles.title}>Your Goals </Text>
 
       <TextInput
         placeholder="Enter goal"
@@ -70,10 +70,13 @@ const handleAddGoal = async () => {
           <Text style={styles.goal}>{item.title}</Text>
         )}
       />
-      
+      <Button
+  title="AI Coach 🤖"
+  onPress={() => navigation.navigate("Chat")}
+/>
       
 <Button
-  title="Go to Habits ðŸ”"
+  title="Go to Habits"
   onPress={() => navigation.navigate("Habits")}
 />
       <Button title="Logout" onPress={handleLogout} />

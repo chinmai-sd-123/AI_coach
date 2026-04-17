@@ -1,4 +1,4 @@
-const BASE_URL= "http://10.49.96.188:8000"
+const BASE_URL= "http://10.28.203.188:8000";  // CHANGE THIS TO YOUR BACKEND IP
 
 export const signupUser = async (email, password) => {
   const res = await fetch(`${BASE_URL}/signup`, {
@@ -144,4 +144,63 @@ export const logHabit = async (habit_id, status, token) => {
   });
 
   return res.json();
+};
+
+
+// NEW: Get habit streak
+export const getHabitStreak = async (habit_id, token) => {
+  const res = await fetch(`${BASE_URL}/habits/${habit_id}/streak`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  let data;
+
+  try {
+    data = await res.json();
+  } catch (err) {
+    const text = await res.text();
+    throw new Error(text);
+  }
+
+  if (!res.ok) {
+    throw new Error(data.detail || "Failed to fetch streak");
+  }
+
+  return data.streak;
+};
+
+// chat api
+
+export const sendMessage = async (message, token) => {
+  try {
+    const res = await fetch(`${BASE_URL}/chat/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ message }),
+    });
+
+    let data;
+
+    try {
+      data = await res.json();
+    } catch {
+      const text = await res.text();
+      console.log("RAW RESPONSE:", text);
+      throw new Error(text);
+    }
+
+    if (!res.ok) {
+      console.log("CHAT BACKEND ERROR:", data);
+      throw new Error(data.detail || "Chat failed");
+    }
+
+    return data;
+
+  } catch (err) {
+    console.log("SEND MESSAGE ERROR:", err.message);
+    throw err;
+  }
 };

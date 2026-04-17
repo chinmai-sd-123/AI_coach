@@ -87,7 +87,10 @@ def get_habit_streak(
     if not habit:
         raise HTTPException(status_code=404, detail="Habit not found")
 
-    logs = db.query(models.HabitLog).filter(models.HabitLog.habit_id == habit_id).all()
+    logs = db.query(models.HabitLog).join(models.Habit).filter(
+    models.HabitLog.habit_id == habit_id,
+    models.Habit.user_id == user_id
+).all()
     streak = calculate_streak(logs)
 
     return {"habit_id": habit_id, "streak": streak}

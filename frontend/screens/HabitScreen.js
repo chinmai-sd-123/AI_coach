@@ -16,6 +16,7 @@ export default function HabitsScreen() {
   const [habit, setHabit] = useState("");
   const [habits, setHabits] = useState([]);
   const [token, setToken] = useState("");
+  const [streaks, setStreaks] = useState({});
 
   // 🔥 Load habits on screen load
   useEffect(() => {
@@ -29,6 +30,15 @@ export default function HabitsScreen() {
 
       const data = await getHabits(storedToken);
       setHabits(data);
+      // Load streaks for each habit
+      const streakData = {};
+      for (let h of data) {
+        const streakRes = await getHabitStreak(h.id, storedToken);
+        streakData[h.id] = streakRes.streak;
+      }
+      setStreaks(streakData);
+
+
     } catch (err) {
       console.log("LOAD HABITS ERROR:", err.message);
     }
@@ -55,6 +65,10 @@ export default function HabitsScreen() {
     try {
       await logHabit(id, status, token);
       Alert.alert("Success", status ? "Marked Done ✅" : "Marked Missed ❌");
+
+      // Refresh streak for this habit
+      loadHabits();
+
     } catch (err) {
       console.log("LOG ERROR:", err.message);
     }
@@ -80,7 +94,9 @@ export default function HabitsScreen() {
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <View style={styles.row}>
-            <Text style={styles.habitText}>{item.name}</Text>
+            <Text style={styles.habitText}>
+  {item.name} 🔥 {streaks[item.id] || 0}
+</Text>
 
             <View style={styles.buttons}>
               <Button title="✅" onPress={() => handleLog(item.id, true)} />
