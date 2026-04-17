@@ -1,206 +1,107 @@
-const BASE_URL= "http://10.28.203.188:8000";  // CHANGE THIS TO YOUR BACKEND IP
+const BASE_URL = "http://10.28.203.188:8000";
 
-export const signupUser = async (email, password) => {
-  const res = await fetch(`${BASE_URL}/signup`, {
-    method: "POST",
+async function request(path, { method = "GET", token, body } = {}) {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method,
     headers: {
-      "Content-Type": "application/json",
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({
-      email,
-      password,
-    }),
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
-  let data;
+  const rawText = await response.text();
+  let data = null;
 
-  try {
-    data = await res.json();
-  } catch {
-    const text = await res.text();
-    throw new Error(text);
+  if (rawText) {
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      data = rawText;
+    }
   }
 
-  if (!res.ok) {
-    throw new Error(data.detail || "Signup failed");
+  if (!response.ok) {
+    if (typeof data === "string") {
+      throw new Error(data);
+    }
+
+    throw new Error(data?.detail || "Request failed");
   }
 
   return data;
-};
+}
 
+function defaultGoalDeadline() {
+  const date = new Date();
+  date.setDate(date.getDate() + 30);
+  return date.toISOString().split("T")[0];
+}
 
-export const loginUser = async (email, password) => {
-  const res = await fetch(`${BASE_URL}/login`, {
+export const signupUser = async (email, password) =>
+  request("/signup", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email, password }),
+    body: { email, password },
   });
 
-  let data;
-
-  try {
-    data = await res.json();  // try JSON
-  } catch (err) {
-    const text = await res.text();  // fallback
-    throw new Error(text);
-  }
-
-  if (!res.ok) {
-    throw new Error(data.detail || "Login failed");
-  }
-
-  return data;
-};
-
-export const getGoals = async (token) => {
-  const res = await fetch(`${BASE_URL}/goals/`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  let data;
-
-  try {
-    data = await res.json();
-  } catch (err) {
-    const text = await res.text();
-    throw new Error(text);
-  }
-
-  if (!res.ok) {
-    throw new Error(data.detail || "Failed to fetch goals");
-  }
-
-  return data;
-};
-
-export const createGoal = async (title, token) => {
-  const res = await fetch(`${BASE_URL}/goals/`, {
+export const loginUser = async (email, password) =>
+  request("/login", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      title: title,  
-      deadline: "2024-12-31",
-      // âœ… VERY IMPORTANT
-    }),
+    body: { email, password },
   });
 
-  let data;
-
-  try {
-    data = await res.json();
-  } catch {
-    const text = await res.text();
-    throw new Error(text);
-  }
-
-  if (!res.ok) {
-    console.log("FULL ERROR RESPONSE:", data);
-    throw new Error(JSON.stringify(data));
-  }
-
-  return data;
-};
-
-export const getHabits = async (token) => {
-  const res = await fetch(`${BASE_URL}/habits/`, {
-    headers: { Authorization: `Bearer ${token}` },
+export const getGoals = async (token) =>
+  request("/goals/", {
+    token,
   });
-  return res.json();
-};
 
-export const createHabit = async (name, token) => {
-  const res = await fetch(`${BASE_URL}/habits/`, {
+export const createGoal = async (title, token) =>
+  request("/goals/", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+    token,
+    body: {
+      title,
+      deadline: defaultGoalDeadline(),
     },
-    body: JSON.stringify({ name }),
   });
-  return res.json();
-};
+
+export const getHabits = async (token) =>
+  request("/habits/", {
+    token,
+  });
+
+export const createHabit = async (name, token) =>
+  request("/habits/", {
+    method: "POST",
+    token,
+    body: { name },
+  });
 
 export const logHabit = async (habit_id, status, token) => {
   const today = new Date().toISOString().split("T")[0];
 
-  const res = await fetch(`${BASE_URL}/habits/log`, {
+  return request("/habits/log", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
+    token,
+    body: {
       habit_id,
       date: today,
       status,
-    }),
+    },
   });
-
-  return res.json();
 };
 
-
-// NEW: Get habit streak
 export const getHabitStreak = async (habit_id, token) => {
-  const res = await fetch(`${BASE_URL}/habits/${habit_id}/streak`, {
-    headers: { Authorization: `Bearer ${token}` },
+  const data = await request(`/habits/${habit_id}/streak`, {
+    token,
   });
 
-  let data;
-
-  try {
-    data = await res.json();
-  } catch (err) {
-    const text = await res.text();
-    throw new Error(text);
-  }
-
-  if (!res.ok) {
-    throw new Error(data.detail || "Failed to fetch streak");
-  }
-
-  return data.streak;
+  return data?.streak ?? 0;
 };
 
-// chat api
-
-export const sendMessage = async (message, token) => {
-  try {
-    const res = await fetch(`${BASE_URL}/chat/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ message }),
-    });
-
-    let data;
-
-    try {
-      data = await res.json();
-    } catch {
-      const text = await res.text();
-      console.log("RAW RESPONSE:", text);
-      throw new Error(text);
-    }
-
-    if (!res.ok) {
-      console.log("CHAT BACKEND ERROR:", data);
-      throw new Error(data.detail || "Chat failed");
-    }
-
-    return data;
-
-  } catch (err) {
-    console.log("SEND MESSAGE ERROR:", err.message);
-    throw err;
-  }
-};
+export const sendMessage = async (message, token) =>
+  request("/chat/", {
+    method: "POST",
+    token,
+    body: { message },
+  });
