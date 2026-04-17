@@ -1,6 +1,5 @@
 from datetime import date, timedelta
 
-
 def calculate_streak(logs):
     # sort logs by date
     sorted_logs = sorted(logs, key=lambda x: x.date, reverse=True)
@@ -13,6 +12,7 @@ def calculate_streak(logs):
         #check if log date matches expected date and status is done
         if log.date == expected_date and log.status:
             streak += 1
-        else:
+        else:            
             break
     return streak
+       

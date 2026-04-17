@@ -15,8 +15,8 @@ def get_db():
         db.close()
 
 
-# ✅ CREATE GOAL
-@router.post("/", response_model=schemas.GoalResponse)
+# âœ… CREATE GOAL
+@router.post("/")
 def create_goal(
     goal: schemas.GoalCreate,
     db: Session = Depends(get_db),
@@ -25,7 +25,7 @@ def create_goal(
     new_goal = models.Goal(
         title=goal.title,
         deadline=goal.deadline,
-        user_id=user_id   # ✅ VERY IMPORTANT
+        user_id=user_id   # âœ… VERY IMPORTANT
     )
 
     db.add(new_goal)
@@ -35,19 +35,19 @@ def create_goal(
     return new_goal
 
 
-# ✅ GET USER GOALS
-@router.get("/", response_model=list[schemas.GoalResponse])
+# âœ… GET USER GOALS
+@router.get("/")
 def get_goals(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user)
 ):
-    goals = db.query(models.Goal).filter(
-        models.Goal.user_id == user_id   # ✅ FIX
-    ).all()
+    return db.query(models.Goal).filter(
+        models.Goal.user_id == user_id   # âœ… FIX
+    ).all()     
     return goals
 
 
-# ✅ DELETE GOAL
+# âœ… DELETE GOAL
 @router.delete("/{goal_id}")
 def delete_goal(
     goal_id: int,

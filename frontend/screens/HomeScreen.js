@@ -28,20 +28,22 @@ export default function HomeScreen({ navigation }) {
     setGoals(data);
   };
 
-  const handleAddGoal = async () => {
-    if (!goal.trim()) return;
+const handleAddGoal = async () => {
+  if (!goal.trim()) return;
 
-    try {
-      await createGoal(goal, token);
-      setGoal("");
+  try {
+    await createGoal(goal, token);
 
-      // Force a fresh fetch after creating a goal.
-      const updatedGoals = await getGoals(token);
-      setGoals(updatedGoals);
-    } catch (err) {
-      console.log("ADD GOAL ERROR:", err.message || err);
-    }
-  };
+    setGoal("");
+
+    // ðŸ”¥ force fresh fetch
+    const updatedGoals = await getGoals(token);
+    setGoals(updatedGoals);
+
+  } catch (err) {
+    console.log("ADD GOAL ERROR:", err.message || err);
+  }
+};
 
   const handleLogout = async () => {
     await removeToken();
@@ -50,7 +52,7 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Your Goals</Text>
+      <Text style={styles.title}>Your Goals ðŸŽ¯</Text>
 
       <TextInput
         placeholder="Enter goal"
@@ -64,13 +66,16 @@ export default function HomeScreen({ navigation }) {
       <FlatList
         data={goals}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => <Text style={styles.goal}>{item.title}</Text>}
+        renderItem={({ item }) => (
+          <Text style={styles.goal}>{item.title}</Text>
+        )}
       />
-
-      <Button
-        title="Go to Habits"
-        onPress={() => navigation.navigate("Habits")}
-      />
+      
+      
+<Button
+  title="Go to Habits ðŸ”"
+  onPress={() => navigation.navigate("Habits")}
+/>
       <Button title="Logout" onPress={handleLogout} />
     </View>
   );

@@ -7,22 +7,24 @@ export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = async () => {
-    try {
-      const data = await loginUser(email, password);
+const handleLogin = async () => {
+  try {
+    const data = await loginUser(email, password);
 
-      if (data.access_token) {
-        await saveToken(data.access_token);
-        Alert.alert("Success", "Login successful ");
-        navigation.replace("Home");
-      } else {
-        Alert.alert("Error", data.detail || "Invalid login");
-      }
-    } catch (error) {
-      console.log("ERROR:", error);
-      Alert.alert("Error", error.message || "Something went wrong");
+    if (data.access_token) {
+      await saveToken(data.access_token);
+
+      Alert.alert("Success", "Login successful ");
+
+      navigation.replace("Home");  // ðŸ‘ˆ move to home
+    } else {
+      Alert.alert("Error", data.detail || "Invalid login");
     }
-  };
+  } catch (error) {
+  console.log("ERROR:", error);
+  Alert.alert("Error", error.message || "Something went wrong");
+}
+};
 
   return (
     <View style={styles.container}>
@@ -47,11 +49,12 @@ export default function LoginScreen({ navigation }) {
         <Text style={styles.buttonText}>Login</Text>
       </TouchableOpacity>
       <Text
-        onPress={() => navigation.navigate("Signup")}
-        style={{ textAlign: "center", marginTop: 10, color: "blue" }}
-      >
-        Don't have an account? Sign Up
-      </Text>
+  onPress={() => navigation.navigate("Signup")}
+  style={{ textAlign: "center", marginTop: 10, color: "blue" }}
+>
+  Don't have an account? Sign Up
+</Text>
+      
     </View>
   );
 }

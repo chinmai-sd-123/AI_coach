@@ -16,6 +16,7 @@ model = "gemini-3.1-flash-lite-preview"   # stable model
 
 
 def generate_response(user_message, goals, habits, logs=None):
+    
     goals_text = "\n".join([g.title for g in goals]) if goals else "No goals set."
     habits_text = "\n".join([h.name for h in habits]) if habits else "No habits set."
 

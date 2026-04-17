@@ -1,4 +1,4 @@
-const BASE_URL = "http://10.49.96.188:8000";
+const BASE_URL= "http://10.49.96.188:8000"
 
 export const signupUser = async (email, password) => {
   const res = await fetch(`${BASE_URL}/signup`, {
@@ -28,6 +28,7 @@ export const signupUser = async (email, password) => {
   return data;
 };
 
+
 export const loginUser = async (email, password) => {
   const res = await fetch(`${BASE_URL}/login`, {
     method: "POST",
@@ -40,9 +41,9 @@ export const loginUser = async (email, password) => {
   let data;
 
   try {
-    data = await res.json();
+    data = await res.json();  // try JSON
   } catch (err) {
-    const text = await res.text();
+    const text = await res.text();  // fallback
     throw new Error(text);
   }
 
@@ -84,8 +85,9 @@ export const createGoal = async (title, token) => {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
-      title: title,
+      title: title,  
       deadline: "2024-12-31",
+      // âœ… VERY IMPORTANT
     }),
   });
 

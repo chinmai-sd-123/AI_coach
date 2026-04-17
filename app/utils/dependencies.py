@@ -22,9 +22,6 @@ def get_current_user(
 ):
     payload = decode_token(token)
 
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
     email = payload.get("sub")
 
     if not email:
@@ -35,4 +32,4 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    return user.id   # 🔥🔥🔥 THIS IS THE FIX
+    return user.id   # ðŸ”¥ðŸ”¥ðŸ”¥ THIS IS THE FIX
