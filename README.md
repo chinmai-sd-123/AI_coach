@@ -58,7 +58,7 @@ AI: Acknowledge it and restart with a lighter session today instead of skipping 
 
 ---
 
-## 🏗️ System Architecture
+##  System Architecture
 
 The system follows a layered architecture separating client, backend, AI, and data layers.
 
@@ -66,7 +66,7 @@ The system follows a layered architecture separating client, backend, AI, and da
   <img src="frontend/assets/images/system_architecture.png" alt="System Architecture" width="900" />
 </p>
 
-## 🔄 Chat Request Flow
+##  Chat Request Flow
 
 The following sequence diagram shows how a chat request is processed end-to-end:
 
