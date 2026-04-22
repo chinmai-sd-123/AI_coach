@@ -60,13 +60,21 @@ def log_habit(
     if not habit:
         raise HTTPException(status_code=404, detail="Habit not found")
 
-    new_log = models.HabitLog(
-        habit_id=log.habit_id,
-        date=log.date,
-        status=log.status
-    )
+    existing_log = db.query(models.HabitLog).filter(
+        models.HabitLog.habit_id == log.habit_id,
+        models.HabitLog.date == log.date
+    ).first()
 
-    db.add(new_log)
+    if existing_log:
+        existing_log.status = log.status
+    else:
+        new_log = models.HabitLog(
+            habit_id=log.habit_id,
+            date=log.date,
+            status=log.status
+        )
+        db.add(new_log)
+
     db.commit()
 
     return {"message": "Habit logged successfully"}
@@ -88,9 +96,30 @@ def get_habit_streak(
         raise HTTPException(status_code=404, detail="Habit not found")
 
     logs = db.query(models.HabitLog).join(models.Habit).filter(
-    models.HabitLog.habit_id == habit_id,
-    models.Habit.user_id == user_id
-).all()
+        models.HabitLog.habit_id == habit_id,
+        models.Habit.user_id == user_id
+    ).all()
     streak = calculate_streak(logs)
 
     return {"habit_id": habit_id, "streak": streak}
+
+
+@router.get("/{habit_id}/logs")
+def get_logs(
+    habit_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user)
+):
+    habit = db.query(models.Habit).filter(
+        models.Habit.id == habit_id,
+        models.Habit.user_id == user_id
+    ).first()
+
+    if not habit:
+        raise HTTPException(status_code=404, detail="Habit not found")
+
+    logs = db.query(models.HabitLog).filter(
+        models.HabitLog.habit_id == habit_id
+    ).order_by(models.HabitLog.date.asc(), models.HabitLog.id.asc()).all()
+
+    return logs

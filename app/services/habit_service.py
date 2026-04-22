@@ -1,18 +1,28 @@
 from datetime import date, timedelta
 
+
 def calculate_streak(logs):
-    # sort logs by date
-    sorted_logs = sorted(logs, key=lambda x: x.date, reverse=True)
-    streak = 0
-
+    latest_logs_by_date = {}
     today = date.today()
-    for i, log in enumerate(sorted_logs):
-        expected_date = today - timedelta(days=i)
+    yesterday = today - timedelta(days=1)
 
-        #check if log date matches expected date and status is done
-        if log.date == expected_date and log.status:
-            streak += 1
-        else:            
-            break
+    for log in sorted(logs, key=lambda x: (x.date, getattr(x, "id", 0)), reverse=True):
+        if log.date > today:
+            continue
+
+        if log.date not in latest_logs_by_date:
+            latest_logs_by_date[log.date] = log.status
+
+    if latest_logs_by_date.get(today) is True:
+        current_date = today
+    elif latest_logs_by_date.get(yesterday) is True:
+        current_date = yesterday
+    else:
+        return 0
+
+    streak = 0
+    while latest_logs_by_date.get(current_date) is True:
+        streak += 1
+        current_date -= timedelta(days=1)
+
     return streak
-       

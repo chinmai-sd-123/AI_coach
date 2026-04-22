@@ -40,6 +40,7 @@ function AppTabs({ onLogout }) {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: true,
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: "#8c8b86",
         tabBarStyle: styles.tabBar,

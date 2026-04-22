@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Pressable,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -20,7 +21,7 @@ import {
   StatPill,
   SurfaceCard,
 } from "../components/ui";
-import { createHabit, getHabits, getHabitStreak, logHabit } from "../services/api";
+import { createHabit, getHabits, getHabitStreak, logHabit, getHabitLog } from "../services/api";
 import { getToken } from "../utils/auth";
 import { appFonts, colors, radius, spacing } from "../theme";
 
@@ -34,6 +35,7 @@ export default function HabitsScreen() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [activeHabitId, setActiveHabitId] = useState(null);
+  const [logs, setLogs] = useState({}); 
 
   const loadHabits = useCallback(async () => {
     setLoading(true);
@@ -45,6 +47,7 @@ export default function HabitsScreen() {
       const data = storedToken ? await getHabits(storedToken) : [];
       const safeHabits = Array.isArray(data) ? data : [];
       setHabits(safeHabits);
+      await loadLogs(safeHabits, storedToken);
 
       const streakEntries = await Promise.all(
         safeHabits.map(async (item) => [
@@ -83,25 +86,69 @@ export default function HabitsScreen() {
       setCreating(false);
     }
   };
+  const loadLogs = async (habits, token) => {
+  const logMap = {};
 
-  const handleLog = async (id, status) => {
-    try {
-      setActiveHabitId(id);
-      await Haptics.selectionAsync();
-      await logHabit(id, status, token);
-      Alert.alert(
-        status ? "Habit completed" : "Habit skipped",
-        status
-          ? "Nice work. Your habit log has been updated."
-          : "Logged as skipped. You can reset and keep the streak alive tomorrow."
-      );
-      await loadHabits();
-    } catch (err) {
-      Alert.alert("Unable to update habit", err.message || "Please try again.");
-    } finally {
-      setActiveHabitId(null);
+  for (let habit of habits) {
+    const data = await getHabitLog(habit.id, token);
+
+    logMap[habit.id] = {};
+
+    data.forEach((log) => {
+      logMap[habit.id][log.date] = log.status;
+    });
+  }
+
+  setLogs(logMap);
+};
+
+const handleLog = async (habitId, status, date) => {
+  const previousStatus = logs[habitId]?.[date];
+
+  try {
+    setActiveHabitId(habitId);
+
+    setLogs((prev) => ({
+      ...prev,
+      [habitId]: {
+        ...prev[habitId],
+        [date]: status,
+      },
+    }));
+
+    await logHabit(habitId, status, token, date);
+
+    const updatedStreak = await getHabitStreak(habitId, token);
+    setStreaks((prev) => ({
+      ...prev,
+      [habitId]: updatedStreak,
+    }));
+
+  } catch (err) {
+    setLogs((prev) => ({
+      ...prev,
+      [habitId]: {
+        ...prev[habitId],
+        [date]: previousStatus,
+      },
+    }));
+    Alert.alert("Error", err.message);
+  } finally {
+    setActiveHabitId(null);
+  }
+};
+
+
+  const getLast7Days = () => {
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      days.push(d.toISOString().split("T")[0]);
     }
+    return days;
   };
+
 
   const bestStreak = habits.length
     ? Math.max(...habits.map((item) => streaks[item.id] || 0))
@@ -185,21 +232,30 @@ export default function HabitsScreen() {
                   <Text style={styles.streakLabel}>day streak</Text>
                 </View>
 
-                <View style={styles.logRow}>
-                  <PrimaryButton
-                    loading={isActive}
-                    onPress={() => handleLog(item.id, true)}
-                    style={styles.logButton}
-                    title="Done today"
-                  />
-                  <PrimaryButton
-                    onPress={() => handleLog(item.id, false)}
-                    style={styles.skipButton}
-                    textStyle={styles.skipButtonText}
-                    title="Skip"
-                    variant="secondary"
-                  />
-                </View>
+                <View style={{ flexDirection: "row", marginTop: 10 }}>
+  {getLast7Days().map((date) => {
+    const status = logs[item.id]?.[date];
+
+    return (
+      <View key={date} style={{ alignItems: "center", marginRight: 6 }}>
+        <Pressable
+          disabled={isActive}
+          onPress={() => handleLog(item.id, !status, date)}
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            backgroundColor: status ? "#4CAF50" : "#ddd",
+            opacity: isActive ? 0.6 : 1,
+          }}
+        />
+        <Text style={{ fontSize: 10 }}>
+          {date.slice(8)} {/* shows day */}
+        </Text>
+      </View>
+    );
+  })}
+</View>
               </SurfaceCard>
             );
           })}
