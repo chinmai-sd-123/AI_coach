@@ -2,7 +2,7 @@
 
 // ✅ Environment variable instead of hardcoded LAN IP
 // In Vite: import.meta.env.VITE_API_URL, in CRA: process.env.REACT_APP_API_URL
-const BASE_URL = "http://10.36.94.188:8000";
+const BASE_URL = "http://X.X.X.X:8000";
 
 // ✅ Centralized timeout — one place to adjust for all requests
 const DEFAULT_TIMEOUT_MS = 8000;
