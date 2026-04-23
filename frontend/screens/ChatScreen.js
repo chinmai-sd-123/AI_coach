@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +14,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import NetInfo from "@react-native-community/netinfo";
+import Markdown from "react-native-markdown-display";
+
 import {
   Chip,
   PrimaryButton,
@@ -22,17 +23,15 @@ import {
   SectionTitle,
   SurfaceCard,
 } from "../components/ui";
-import { sendMessage,ApiError } from "../services/api";
-
+import { sendMessage, ApiError } from "../services/api";
 import { getToken } from "../utils/auth";
 import { appFonts, colors, radius, shadows, spacing } from "../theme";
 
 // ─────────────────────────────────────────────
-// Constants — defined outside component so they
-// are never recreated on re-render
+// Constants
 // ─────────────────────────────────────────────
 
-const MAX_INPUT_LENGTH = 300; // ✅ mirrors backend ChatRequest.message max_length
+const MAX_INPUT_LENGTH = 300;
 
 const STARTER_PROMPTS = [
   "Help me plan my day",
@@ -45,39 +44,61 @@ const INITIAL_MESSAGES = [
     id: "welcome",
     role: "assistant",
     text: "I'm ready to help you think clearly, make a plan, and keep your goals realistic. What feels most important today?",
+    isLoading: false,
+    isStreaming: false,
   },
 ];
 
-const LOADING_MESSAGE = [
+const LOADING_MESSAGES = [
   "Thinking...",
   "Analyzing your habits...",
   "Finding the best advice...",
-  "Reviewing your progress...",
+  "Checking your progress...",
+  "Crafting your next step...",
 ];
 
-// ✅ Generates a collision-resistant ID for messages
-// Date.now() alone can collide if two messages are created in the same ms
 let _msgCounter = 0;
 const makeId = (prefix) => `${prefix}-${Date.now()}-${++_msgCounter}`;
+
+// ─────────────────────────────────────────────
+// TypingDots — animated "..." indicator
+// Shown inside the placeholder bubble while API is in flight
+// ─────────────────────────────────────────────
+
+function TypingDots() {
+  const [dots, setDots] = useState(".");
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setDots((d) => (d.length >= 3 ? "." : d + "."));
+    }, 400);
+    return () => clearInterval(id);
+  }, []);
+
+  return <Text style={styles.typingDots}>{dots}</Text>;
+}
 
 // ─────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────
 
 export default function ChatScreen() {
-  const { width } = useWindowDimensions();
-  const isWide    = width >= 920;
-  const isCompact = width < 640;
+  const { width }  = useWindowDimensions();
+  const isWide     = width >= 920;
+  const isCompact  = width < 640;
 
   const [message,    setMessage]    = useState("");
   const [chat,       setChat]       = useState(INITIAL_MESSAGES);
   const [token,      setToken]      = useState("");
   const [loading,    setLoading]    = useState(false);
   const [tokenReady, setTokenReady] = useState(false);
-  const [loadingText, setLoadingText] = useState(LOADING_MESSAGE[0]);
-  const scrollRef = useRef(null);
 
-  // ── Load auth token on mount ──────────────────
+  const scrollRef = useRef(null);
+  const abortRef = useRef(null);
+  const isAtBottomRef = useRef(true);
+
+
+  // ── Load token ────────────────────────────────
   useEffect(() => {
     (async () => {
       const stored = await getToken();
@@ -86,33 +107,84 @@ export default function ChatScreen() {
     })();
   }, []);
 
-  // ── Auto-scroll on new messages or loading state ──
+  // ── Auto-scroll ───────────────────────────────
   useEffect(() => {
-    // Small delay lets the layout settle before scrolling
     const id = setTimeout(
       () => scrollRef.current?.scrollToEnd({ animated: true }),
       50,
     );
-    return () => clearTimeout(id); // ✅ cleanup avoids scroll after unmount
-  }, [chat, loading]);
+    return () => clearTimeout(id);
+  }, [chat]);
 
-  // ── Append a message to chat history ─────────
-  // ✅ Extracted helper — keeps handleSend readable
-  const appendMessage = useCallback((role, text, idPrefix = role) => {
-    setChat((prev) => [...prev, { id: makeId(idPrefix), role, text }]);
+  useEffect(() => {
+  if (!isAtBottomRef.current) return; // ← user scrolled up, leave them alone
+  const id = setTimeout(
+    () => scrollRef.current?.scrollToEnd({ animated: true }),
+    50,
+  );
+  return () => clearTimeout(id);
+}, [chat]);
+
+  // ── Append a new message ──────────────────────
+  const appendMessage = useCallback(
+    (role, text, idPrefix = role, extra = {}) => {
+      const msg = { id: makeId(idPrefix), role, text,
+                    isLoading: false, isStreaming: false, ...extra };
+      setChat((prev) => [...prev, msg]);
+      return msg.id; // ✅ return id so caller can reference it later
+    },
+    [],
+  );
+
+  // ── Update an existing message by id ─────────
+  // ✅ Used to replace the placeholder bubble in-place
+  //    instead of appending a new bubble after the loading one
+  const updateMessageById = useCallback((id, patch) => {
+    setChat((prev) =>
+      prev.map((msg) => (msg.id === id ? { ...msg, ...patch } : msg)),
+    );
   }, []);
 
+  // ── Word-by-word streaming into a bubble ─────
+  // ✅ Gives the appearance of streaming without requiring
+  //    backend SSE changes — splits on whitespace, reveals
+  //    one token at a time at ~35ms intervals (~28 words/sec)
+const streamIntoMessage = useCallback(
+  async (id, fullText) => {
+    const tokens = fullText.split(/(\s+)/);
+    let built = "";
+    let pendingText = "";
+    let rafId = null;
+
+    for (const token of tokens) {
+      built += token;
+      pendingText = built;
+
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          updateMessageById(id, { text: pendingText, isStreaming: true });
+          rafId = null;
+        });
+      }
+
+      const delay = fullText.length < 80 ? 15 : 30;
+      await new Promise((r) => setTimeout(r, delay));
+    }
+
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    updateMessageById(id, { text: fullText, isStreaming: false });
+  },
+  [updateMessageById],
+);
+
   // ── Core send handler ─────────────────────────
-  // ✅ useCallback — stable reference, safe to pass to Chip onPress
   const handleSend = useCallback(
     async (presetText) => {
       const outgoing = (presetText ?? message).trim();
 
-      
-      // Guard: empty input or mid-flight request
+      // ── Cheap sync guards first ──
       if (!outgoing || loading) return;
 
-      // Guard: token not loaded yet
       if (!tokenReady) {
         appendMessage(
           "assistant",
@@ -122,7 +194,6 @@ export default function ChatScreen() {
         return;
       }
 
-      // Guard: token missing after loading
       if (!token) {
         appendMessage(
           "assistant",
@@ -131,67 +202,120 @@ export default function ChatScreen() {
         );
         return;
       }
-      const state = await NetInfo.fetch();
-      if (!state.isConnected) {
+
+      // ── Network check (async, after sync guards) ──
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
         appendMessage(
-           "assistant",
-    "You're offline. Check your connection.",
-    "assistant-offline"
+          "assistant",
+          "You're offline. Check your connection and try again.",
+          "assistant-offline",
         );
         return;
       }
-      setLoadingText(
-        LOADING_MESSAGE[Math.floor(Math.random() * LOADING_MESSAGE.length)]
-      );
 
-      // Optimistically append the user message
+  if(abortRef.current) {
+    abortRef.current.abort(); // cancel any in-flight request before starting a new one
+  }
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+
+      // ── 1. Show user message immediately ─────
       appendMessage("user", outgoing, "user");
+      isAtBottomRef.current = true; // user just sent a message, we can assume they want to be at the bottom
+      scrollRef.current?.scrollToEnd({ animated: true });
       setMessage("");
-      Keyboard.dismiss(); // ✅ close keyboard after sending on mobile
+      Keyboard.dismiss();
       setLoading(true);
 
+      // ── 2. Inject placeholder bubble ─────────
+      // ✅ Inline loading state — no separate ActivityIndicator overlay
+      //    The bubble itself shows animated dots while API is in flight
+      const randomLabel =
+        LOADING_MESSAGES[Math.floor(Math.random() * LOADING_MESSAGES.length)];
+
+      const placeholderId = appendMessage(
+        "assistant",
+        randomLabel,
+        "assistant-loading",
+        { isLoading: true }, // ← signals TypingDots render
+      );
+
       try {
-        const res = await sendMessage(outgoing, token);
-
-        // ✅ Fallback chain: handles varying API response shapes
+        // ── 3. Call API ───────────────────────
+        const res   = await sendMessage(outgoing, token, controller.signal);
         const reply =
-           res?.reply ?? res?.response ?? res?.message;
+          res?.reply ?? res?.response ?? res?.message ??
+          "I didn't quite get that — could you try rephrasing?";
 
-        appendMessage(
-          "assistant",
-          reply || "I didn’t quite get that — could you try rephrasing?"
-);
+        // ── 4. Stream response into placeholder ──
+        // ✅ isLoading → false immediately so dots disappear
+        //    isStreaming → true so text reveals word by word
+        updateMessageById(placeholderId, { isLoading: false, isStreaming: true, text: "" });
+        await streamIntoMessage(placeholderId, reply);
+
       } catch (err) {
-        // ✅ ApiError carries a status code — handle 401 distinctly
-        if (err instanceof ApiError && err.status === 401) {
-          appendMessage(
-            "assistant",
-            "Your session expired mid-chat. Please log in again.",
-            "assistant-expired",
-          );
-          return;
+        // ── 5. Replace placeholder with error ──
+        // ✅ Single bubble handles all states — no extra bubbles appended
+        if(err.name === "AbortError") {
+          setChat((prev) => prev.filter((msg) => msg.id !== placeholderId));
+          return; // aborted — don't show error
         }
 
-        // Generic error: show inside the chat, not a modal Alert
-        appendMessage(
-          "assistant",
-          err.message || "The coach could not respond right now.",
-          "assistant-error",
-        );
+        const errorText =
+          err instanceof ApiError && err.status === 401
+            ? "Your session expired mid-chat. Please log in again."
+            : err.message || "The coach could not respond right now.";
+
+        updateMessageById(placeholderId, {
+          text: errorText,
+          isLoading: false,
+          isStreaming: false,
+        });
       } finally {
-        // ✅ Always runs — loading resets even if catch block throws
         setLoading(false);
-        setLoadingText(LOADING_MESSAGE[0]); // reset to default for next time
+        abortRef.current = null;
       }
     },
-    [message, loading, token, tokenReady, appendMessage],
+    [message, loading, token, tokenReady,
+     appendMessage, updateMessageById, streamIntoMessage],
   );
 
-  // ── Derived UI state ──────────────────────────
-  const charsLeft      = MAX_INPUT_LENGTH - message.length;
-  const isOverLimit    = charsLeft < 0;
-  const sendDisabled   = !tokenReady || loading || isOverLimit;
-  const showCharCount  = message.length > MAX_INPUT_LENGTH * 0.8; // ✅ show counter at 80%
+  // ── Derived state ─────────────────────────────
+  const charsLeft     = MAX_INPUT_LENGTH - message.length;
+  const isOverLimit   = charsLeft < 0;
+  const sendDisabled  = !tokenReady || loading || isOverLimit;
+  const showCharCount = message.length > MAX_INPUT_LENGTH * 0.8;
+
+  // ─────────────────────────────────────────────
+  // Render helpers
+  // ─────────────────────────────────────────────
+
+  // ✅ Each bubble decides how to render its content:
+  //    isLoading   → animated dots (API in flight)
+  //    isStreaming → plain Text (mid-stream, Markdown parse would flicker)
+  //    done        → Markdown (full response, safe to parse)
+  const renderBubbleContent = (item) => {
+    if (item.isLoading) {
+      return (
+        <View style={styles.typingRow}>
+          <TypingDots />
+          <Text style={styles.loadingLabel}>{item.text}</Text>
+        </View>
+      );
+    }
+
+    if (item.role === "user") {
+  return (
+    <Text style={[styles.messageText, styles.userMessageText]}>
+      {item.text}
+    </Text>
+  );
+}
+
+return <Markdown style={markdownStyles}>{item.text}</Markdown>;
+  };
 
   // ─────────────────────────────────────────────
   // Render
@@ -207,7 +331,7 @@ export default function ChatScreen() {
         enabled
         style={styles.keyboard}
       >
-        {/* ── Header ── */}
+        {/* Header */}
         <View style={styles.headerWrap}>
           <SectionTitle
             eyebrow="AI Coach"
@@ -217,20 +341,22 @@ export default function ChatScreen() {
                 : "Use the chat for planning, reflection, and habit support."
             }
             title={
-              isCompact ? "Talk with your coach" : "Talk through the next best move."
+              isCompact
+                ? "Talk with your coach"
+                : "Talk through the next best move."
             }
           />
         </View>
 
-        {/* ── Chat layout ── */}
+        {/* Chat layout */}
         <View
           style={[
             styles.chatLayout,
             isCompact && styles.chatLayoutCompact,
-            isWide   && styles.chatLayoutWide,
+            isWide    && styles.chatLayoutWide,
           ]}
         >
-          {/* Wide sidebar with starter prompts */}
+          {/* Wide sidebar */}
           {isWide && (
             <SurfaceCard style={[styles.introCard, styles.sidebarCard]}>
               <Text style={styles.introTitle}>Start with a clear prompt</Text>
@@ -238,22 +364,18 @@ export default function ChatScreen() {
                 The more specific you are, the more practical the coaching becomes.
               </Text>
               <View style={styles.promptList}>
-                {STARTER_PROMPTS.map((prompt) => (
-                  <Chip
-                    key={prompt}
-                    onPress={() => handleSend(prompt)}
-                    title={prompt}
-                  />
+                {STARTER_PROMPTS.map((p) => (
+                  <Chip key={p} onPress={() => handleSend(p)} title={p} />
                 ))}
               </View>
             </SurfaceCard>
           )}
 
-          {/* Main chat card */}
+          {/* Chat card */}
           <SurfaceCard
             style={[styles.chatCard, isCompact && styles.chatCardCompact]}
           >
-            {/* Mobile horizontal prompt chips */}
+            {/* Mobile chips */}
             {!isWide && (
               <View style={styles.mobilePromptBlock}>
                 {!isCompact && (
@@ -269,12 +391,12 @@ export default function ChatScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.mobilePromptList}
                 >
-                  {STARTER_PROMPTS.map((prompt) => (
+                  {STARTER_PROMPTS.map((p) => (
                     <Chip
-                      key={prompt}
-                      onPress={() => handleSend(prompt)}
+                      key={p}
+                      onPress={() => handleSend(p)}
                       style={styles.mobilePromptChip}
-                      title={prompt}
+                      title={p}
                     />
                   ))}
                 </ScrollView>
@@ -288,8 +410,13 @@ export default function ChatScreen() {
               style={styles.messageScroll}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              // ✅ Keeps scroll position stable when keyboard opens
               maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+              scrollEventThrottle={100}
+              onScroll={({nativeEvent }) => {
+                const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+                const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+                isAtBottomRef.current = distanceFromBottom < 40; // consider "at bottom" if within 40px
+              }}
             >
               {chat.map((item) => (
                 <View
@@ -310,31 +437,10 @@ export default function ChatScreen() {
                   >
                     {item.role === "user" ? "You" : "Coach"}
                   </Text>
-                  <Text
-                    style={[
-                      styles.messageText,
-                      item.role === "user" && styles.userMessageText,
-                    ]}
-                  >
-                    {item.text}
-                  </Text>
+
+                  {renderBubbleContent(item)}
                 </View>
               ))}
-
-              {/* Typing indicator */}
-              {loading && (
-                <View
-                  style={[
-                    styles.messageBubble,
-                    styles.assistantBubble,
-                    styles.loadingBubble,
-                  ]}
-                >
-                  <ActivityIndicator color={colors.primary} size="small" />
-    
-                  <Text style={styles.loadingLabel}>{loadingText}</Text>
-                </View>
-              )}
             </ScrollView>
 
             {/* Composer */}
@@ -342,7 +448,6 @@ export default function ChatScreen() {
               <View
                 style={[
                   styles.composerInputWrap,
-                  // ✅ Visual feedback when over the character limit
                   isOverLimit && styles.composerInputWrapError,
                 ]}
               >
@@ -353,17 +458,15 @@ export default function ChatScreen() {
                 />
                 <TextInput
                   multiline
-                  maxLength={MAX_INPUT_LENGTH + 20} // ✅ soft cap with visible counter
+                  maxLength={MAX_INPUT_LENGTH + 20}
                   onChangeText={setMessage}
                   placeholder="Ask for guidance, planning help, or a habit strategy..."
                   placeholderTextColor={colors.textMuted}
                   style={styles.composerInput}
                   value={message}
-                  // ✅ submit on return key on hardware keyboards (tablets/web)
                   onSubmitEditing={() => handleSend()}
                   blurOnSubmit={false}
                 />
-                {/* ✅ Character counter — only visible near/over limit */}
                 {showCharCount && (
                   <Text
                     style={[
@@ -384,8 +487,8 @@ export default function ChatScreen() {
                     size={18}
                   />
                 }
-                disabled={sendDisabled} // ✅ unified disabled state
-                loading={loading}
+                disabled={sendDisabled}
+                loading={false}
                 onPress={() => handleSend()}
                 style={styles.sendButton}
                 title=""
@@ -399,198 +502,134 @@ export default function ChatScreen() {
 }
 
 // ─────────────────────────────────────────────
-// Styles
+// Markdown styles — maps to app theme
+// ✅ Defined outside component — never recreated on re-render
 // ─────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  screenContent: {
-    paddingHorizontal: 0,
-    paddingBottom: 68,
-  },
-  keyboard: {
-    flex: 1,
-    minHeight: 0,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    gap: spacing.lg,
-  },
-  headerWrap: {
-    paddingTop: 4,
-  },
-  chatLayout: {
-    flex: 1,
-    minHeight: 0,
-    gap: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  chatLayoutCompact: {
-    gap: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  chatLayoutWide: {
-    flexDirection: "row",
-    alignItems: "stretch",
-  },
-  introCard: {
-    gap: spacing.md,
-  },
-  sidebarCard: {
-    width: 280,
-  },
-  introTitle: {
-    color: colors.text,
-    fontFamily: appFonts.heading,
-    fontSize: 20,
-  },
-  introText: {
-    color: colors.textMuted,
-    fontFamily: appFonts.body,
-    fontSize: 14,
-    lineHeight: 22,
-  },
-  promptList: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  chatCard: {
-    flex: 1,
-    minHeight: 0,
-    gap: spacing.md,
-    paddingBottom: spacing.md,
-  },
-  chatCardCompact: {
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  mobilePromptBlock: {
-    gap: spacing.sm,
-  },
-  mobilePromptList: {
-    paddingRight: spacing.sm,
-    gap: spacing.sm,
-  },
-  mobilePromptChip: {
-    marginRight: spacing.sm,
-  },
-  messageScroll: {
-    flex: 1,
-    minHeight: 0,
-    borderRadius: radius.md,
-    backgroundColor: "#fcf7f0",
-  },
-  messageList: {
-    flexGrow: 1,
-    justifyContent: "flex-end",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.xs,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
-  },
-  messageBubble: {
-    maxWidth: "92%",
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: 8,
-  },
-  messageBubbleCompact: {
-    maxWidth: "95%",
-  },
-  assistantBubble: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  userBubble: {
-    alignSelf: "flex-end",
-    backgroundColor: colors.primary,
-    ...shadows.soft,
-  },
-  messageRole: {
-    color: colors.primaryDeep,
-    fontFamily: appFonts.heading,
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  userRole: {
-    color: "#dff4f0",
-  },
-  messageText: {
+const markdownStyles = {
+  body: {
     color: colors.text,
     fontFamily: appFonts.body,
     fontSize: 16,
     lineHeight: 24,
   },
-  userMessageText: {
-    color: colors.white,
-  },
-  loadingBubble: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  loadingLabel: {
-    color: colors.textMuted,
-    fontFamily: appFonts.body,
-    fontSize: 14,
-  },
-  composer: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    alignItems: "center",
-    paddingTop: spacing.xs,
-  },
-  composerInputWrap: {
-    flex: 1,
-    minHeight: 54,
-    maxHeight: 120,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: radius.md,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  // ✅ Red border when over character limit
-  composerInputWrapError: {
-    borderColor: colors.error ?? "#e53e3e",
-  },
-  composerInput: {
-    flex: 1,
-    minHeight: 22,
-    maxHeight: 96,
+  strong: {
+    fontFamily: appFonts.heading,
     color: colors.text,
-    fontFamily: appFonts.body,
-    fontSize: 15,
-    lineHeight: 20,
-    paddingTop: 0,
-    paddingBottom: 0,
-    ...(Platform.OS === "android" ? { textAlignVertical: "center" } : {}),
   },
-  charCount: {
+  em: {
+    fontStyle: "italic",
     color: colors.textMuted,
-    fontFamily: appFonts.body,
-    fontSize: 12,
-    minWidth: 28,
-    textAlign: "right",
   },
-  charCountError: {
-    color: colors.error ?? "#e53e3e",
-    fontWeight: "600",
+  bullet_list: {
+    marginTop: 4,
   },
-  sendButton: {
-    width: 54,
-    minWidth: 54,
-    height: 54,
-    minHeight: 54,
-    alignSelf: "center",
-    paddingHorizontal: 0,
+  list_item: {
+    marginBottom: 2,
+  },
+  code_inline: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontSize: 13,
+  },
+  fence: {
+    backgroundColor: colors.surfaceMuted,
     borderRadius: radius.md,
+    padding: spacing.sm,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontSize: 13,
   },
+  heading2: {
+    fontFamily: appFonts.heading,
+    fontSize: 17,
+    marginTop: spacing.sm,
+    marginBottom: 2,
+    color: colors.text,
+  },
+  heading3: {
+    fontFamily: appFonts.heading,
+    fontSize: 15,
+    marginTop: 4,
+    color: colors.text,
+  },
+};
+
+// ─────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  screenContent:        { paddingHorizontal: 0, paddingBottom: 68 },
+  keyboard:             { flex: 1, minHeight: 0, paddingHorizontal: spacing.lg,
+                          paddingTop: spacing.sm, gap: spacing.lg },
+  headerWrap:           { paddingTop: 4 },
+  chatLayout:           { flex: 1, minHeight: 0, gap: spacing.lg,
+                          paddingBottom: spacing.md },
+  chatLayoutCompact:    { gap: spacing.md, paddingBottom: spacing.sm },
+  chatLayoutWide:       { flexDirection: "row", alignItems: "stretch" },
+  introCard:            { gap: spacing.md },
+  sidebarCard:          { width: 280 },
+  introTitle:           { color: colors.text, fontFamily: appFonts.heading,
+                          fontSize: 20 },
+  introText:            { color: colors.textMuted, fontFamily: appFonts.body,
+                          fontSize: 14, lineHeight: 22 },
+  promptList:           { flexDirection: "row", flexWrap: "wrap",
+                          gap: spacing.sm },
+  chatCard:             { flex: 1, minHeight: 0, gap: spacing.md,
+                          paddingBottom: spacing.md },
+  chatCardCompact:      { padding: spacing.md, gap: spacing.sm },
+  mobilePromptBlock:    { gap: spacing.sm },
+  mobilePromptList:     { paddingRight: spacing.sm, gap: spacing.sm },
+  mobilePromptChip:     { marginRight: spacing.sm },
+  messageScroll:        { flex: 1, minHeight: 0, borderRadius: radius.md,
+                          backgroundColor: "#fcf7f0" },
+  messageList:          { flexGrow: 1, justifyContent: "flex-end",
+                          gap: spacing.sm, paddingHorizontal: spacing.xs,
+                          paddingVertical: spacing.sm },
+  messageBubble:        { maxWidth: "92%", borderRadius: radius.lg,
+                          paddingHorizontal: spacing.md,
+                          paddingVertical: spacing.sm, gap: 8 },
+  messageBubbleCompact: { maxWidth: "95%" },
+  assistantBubble:      { alignSelf: "flex-start",
+                          backgroundColor: colors.surfaceMuted,
+                          borderWidth: 1, borderColor: colors.border },
+  userBubble:           { alignSelf: "flex-end",
+                          backgroundColor: colors.primary, ...shadows.soft },
+  messageRole:          { color: colors.primaryDeep,
+                          fontFamily: appFonts.heading, fontSize: 12,
+                          textTransform: "uppercase", letterSpacing: 1 },
+  userRole:             { color: "#dff4f0" },
+  messageText:          { color: colors.text, fontFamily: appFonts.body,
+                          fontSize: 16, lineHeight: 24 },
+  userMessageText:      { color: colors.white },
+  // ✅ Typing dots row
+  typingRow:            { flexDirection: "row", alignItems: "center",
+                          gap: spacing.sm },
+  typingDots:           { color: colors.primary, fontFamily: appFonts.heading,
+                          fontSize: 20, lineHeight: 24, letterSpacing: 2 },
+  loadingLabel:         { color: colors.textMuted, fontFamily: appFonts.body,
+                          fontSize: 14, fontStyle: "italic" },
+  composer:             { flexDirection: "row", gap: spacing.sm,
+                          alignItems: "center", paddingTop: spacing.xs },
+  composerInputWrap:    { flex: 1, minHeight: 54, maxHeight: 120,
+                          flexDirection: "row", alignItems: "center",
+                          gap: spacing.sm, paddingHorizontal: spacing.md,
+                          paddingVertical: 10, borderRadius: radius.md,
+                          backgroundColor: colors.white,
+                          borderWidth: 1, borderColor: colors.border },
+  composerInputWrapError: { borderColor: colors.error ?? "#e53e3e" },
+  composerInput:        { flex: 1, minHeight: 22, maxHeight: 96,
+                          color: colors.text, fontFamily: appFonts.body,
+                          fontSize: 15, lineHeight: 20,
+                          paddingTop: 0, paddingBottom: 0,
+                          ...(Platform.OS === "android"
+                            ? { textAlignVertical: "center" } : {}) },
+  charCount:            { color: colors.textMuted, fontFamily: appFonts.body,
+                          fontSize: 12, minWidth: 28, textAlign: "right" },
+  charCountError:       { color: colors.error ?? "#e53e3e", fontWeight: "600" },
+  sendButton:           { width: 54, minWidth: 54, height: 54, minHeight: 54,
+                          alignSelf: "center", paddingHorizontal: 0,
+                          borderRadius: radius.md },
 });

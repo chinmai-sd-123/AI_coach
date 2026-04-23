@@ -27,6 +27,7 @@ export default function LoginScreen({ navigation, onAuthenticated }) {
   const isWide = width >= 900;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -54,77 +55,94 @@ export default function LoginScreen({ navigation, onAuthenticated }) {
   };
 
   return (
-    <ScreenShell scroll edges={["top", "bottom"]} contentContainerStyle={styles.screenContent}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={[styles.layout, isWide && styles.layoutWide]}
-      >
-        <View style={[styles.heroBlock, isWide && styles.heroBlockWide]}>
-          <View style={styles.brandRow}>
-            <View style={styles.brandIcon}>
-              <Ionicons color={colors.white} name="sparkles" size={22} />
-            </View>
-            <Text style={styles.brandText}>AI Life Coach</Text>
-          </View>
-
-          <Text style={styles.heroTitle}>Build a steadier routine with a calmer, smarter coach.</Text>
-          <Text style={styles.heroSubtitle}>
-            Daily planning, habits, and coaching all live in one focused space designed
-            to help you follow through.
-          </Text>
-
-          <View style={styles.featureList}>
-            {featurePoints.map((item) => (
-              <View key={item} style={styles.featureRow}>
-                <View style={styles.featureDot} />
-                <Text style={styles.featureText}>{item}</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? spacing.md : 0}
+      style={styles.keyboardAvoidingView}
+    >
+      <ScreenShell scroll edges={["top", "bottom"]} contentContainerStyle={styles.screenContent}>
+        <View style={[styles.layout, isWide && styles.layoutWide]}>
+          <View style={[styles.heroBlock, isWide && styles.heroBlockWide]}>
+            <View style={styles.brandRow}>
+              <View style={styles.brandIcon}>
+                <Ionicons color={colors.white} name="sparkles" size={22} />
               </View>
-            ))}
-          </View>
-        </View>
+              <Text style={styles.brandText}>AI Life Coach</Text>
+            </View>
 
-        <SurfaceCard style={[styles.formCard, isWide && styles.formCardWide]}>
-          <Text style={styles.formEyebrow}>Welcome back</Text>
-          <Text style={styles.formTitle}>Sign in to your account</Text>
-
-          <AppInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            label="Email"
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            value={email}
-          />
-
-          <AppInput
-            label="Password"
-            onChangeText={setPassword}
-            placeholder="Enter your password"
-            secureTextEntry
-            value={password}
-          />
-
-          <PrimaryButton loading={loading} onPress={handleLogin} title="Continue to dashboard" />
-
-          <Pressable onPress={() => navigation.navigate("Signup")} style={styles.footerLink}>
-            <Text style={styles.footerLinkText}>
-              New here? <Text style={styles.footerLinkAccent}>Create your account</Text>
+            <Text style={styles.heroTitle}>Build a steadier routine with a calmer, smarter coach.</Text>
+            <Text style={styles.heroSubtitle}>
+              Daily planning, habits, and coaching all live in one focused space designed
+              to help you follow through.
             </Text>
-          </Pressable>
-        </SurfaceCard>
-      </KeyboardAvoidingView>
-    </ScreenShell>
+
+            <View style={styles.featureList}>
+              {featurePoints.map((item) => (
+                <View key={item} style={styles.featureRow}>
+                  <View style={styles.featureDot} />
+                  <Text style={styles.featureText}>{item}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <SurfaceCard style={[styles.formCard, isWide && styles.formCardWide]}>
+            <Text style={styles.formEyebrow}>Welcome back</Text>
+            <Text style={styles.formTitle}>Sign in to your account</Text>
+
+            <AppInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              label="Email"
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              value={email}
+            />
+
+            <AppInput
+              label="Password"
+              onChangeText={setPassword}
+              placeholder="Enter your password"
+              rightAdornment={
+                <Pressable
+                  hitSlop={10}
+                  onPress={() => setShowPassword((current) => !current)}
+                  style={styles.passwordToggle}
+                >
+                  <Text style={styles.passwordToggleText}>
+                    {showPassword ? "Hide" : "Show"}
+                  </Text>
+                </Pressable>
+              }
+              secureTextEntry={!showPassword}
+              value={password}
+            />
+
+            <PrimaryButton loading={loading} onPress={handleLogin} title="Continue to dashboard" />
+
+            <Pressable onPress={() => navigation.navigate("Signup")} style={styles.footerLink}>
+              <Text style={styles.footerLinkText}>
+                New here? <Text style={styles.footerLinkAccent}>Create your account</Text>
+              </Text>
+            </Pressable>
+          </SurfaceCard>
+        </View>
+      </ScreenShell>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   screenContent: {
     flexGrow: 1,
     justifyContent: "center",
   },
   layout: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: "center",
     gap: spacing.xl,
     width: "100%",
@@ -218,6 +236,14 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     paddingTop: spacing.xs,
+  },
+  passwordToggle: {
+    paddingVertical: 4,
+  },
+  passwordToggleText: {
+    color: colors.primary,
+    fontFamily: appFonts.heading,
+    fontSize: 13,
   },
   footerLinkText: {
     color: colors.textMuted,

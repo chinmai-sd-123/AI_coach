@@ -19,6 +19,8 @@ export function ScreenShell({
 }) {
   const content = scroll ? (
     <ScrollView
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
     >
@@ -60,15 +62,22 @@ export function SectionTitle({ eyebrow, title, subtitle, action }) {
   );
 }
 
-export function AppInput({ label, helper, style, inputStyle, ...props }) {
+export function AppInput({ label, helper, style, inputStyle, rightAdornment, ...props }) {
   return (
     <View style={[styles.inputWrap, style]}>
       {label ? <Text style={styles.inputLabel}>{label}</Text> : null}
-      <TextInput
-        placeholderTextColor={colors.textMuted}
-        style={[styles.input, inputStyle]}
-        {...props}
-      />
+      <View style={styles.inputRow}>
+        <TextInput
+          placeholderTextColor={colors.textMuted}
+          style={[
+            styles.input,
+            rightAdornment && styles.inputWithAdornment,
+            inputStyle,
+          ]}
+          {...props}
+        />
+        {rightAdornment ? <View style={styles.inputAdornment}>{rightAdornment}</View> : null}
+      </View>
       {helper ? <Text style={styles.inputHelper}>{helper}</Text> : null}
     </View>
   );
@@ -270,6 +279,18 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: appFonts.body,
     fontSize: 15,
+  },
+  inputRow: {
+    position: "relative",
+    justifyContent: "center",
+  },
+  inputWithAdornment: {
+    paddingRight: 84,
+  },
+  inputAdornment: {
+    position: "absolute",
+    right: spacing.md,
+    alignSelf: "center",
   },
   button: {
     minHeight: 54,

@@ -2,7 +2,7 @@
 
 // ✅ Environment variable instead of hardcoded LAN IP
 // In Vite: import.meta.env.VITE_API_URL, in CRA: process.env.REACT_APP_API_URL
-const BASE_URL = "http://X.X.X.X:8000";
+const BASE_URL = "http://10.115.206.188:8000";
 
 // ✅ Centralized timeout — one place to adjust for all requests
 const DEFAULT_TIMEOUT_MS = 8000;
@@ -24,7 +24,7 @@ export class ApiError extends Error {
 // Core request function
 // ─────────────────────────────────────────────
 
-async function request(path, { method = "GET", token, body } = {}) {
+async function request(path, { method = "GET", token, body, signal } = {}) {
   // ✅ AbortController lets us cancel the fetch after a timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(
@@ -36,7 +36,7 @@ console.log("TOKEN SENT:", token);
   try {
     response = await fetch(`${BASE_URL}${path}`, {
       method,
-      signal: controller.signal, // ✅ links fetch to the abort controller
+      signal: signal ?? controller.signal, // ✅ links fetch to the abort controller
       headers: {
         ...(body  ? { "Content-Type": "application/json" } : {}),
         ...(token ? { Authorization: `Bearer ${token}` }  : {}),
@@ -147,13 +147,19 @@ export const createHabit = async (name, token) => {
 
 // ✅ Consistent parameter order: (data..., token) — matches every other function
 // ✅ date defaults to today — no more silent undefined being sent to the API
-export const logHabit = async (habit_id, status, token, date = getTodayDate()) =>
-  request("/habits/log", {
+export const logHabit = async (habit_id, status, token) => {
+  const today = new Date().toISOString().split("T")[0];
+
+  return request("/habits/log", {
     method: "POST",
     token,
-    body: { habit_id, date, status },
+    body: {
+      habit_id,
+      date: today,
+      status,
+    },
   });
-
+};
 // ✅ Streak is returned as a number — error propagates naturally to the caller
 // Caller decides whether 0 means "real zero" or "failed" — not silently swallowed here
 export const getHabitStreak = async (habit_id, token) => {
@@ -168,7 +174,7 @@ export const getHabitLog = async (habit_id, token) =>
 // Chat
 // ─────────────────────────────────────────────
 
-export const sendMessage = async (message, token) => {
+export const sendMessage = async (message, token, signal=null) => {
   if (!message?.trim()) throw new ApiError("Message cannot be empty.", 400);
-  return request("/chat/", { method: "POST", token, body: { message } });
+  return request("/chat/", { method: "POST", token, body: { message }, signal });
 };

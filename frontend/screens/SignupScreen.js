@@ -42,91 +42,101 @@ export default function SignupScreen({ navigation }) {
   };
 
   return (
-    <ScreenShell scroll edges={["top", "bottom"]} contentContainerStyle={styles.screenContent}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={[styles.layout, isWide && styles.layoutWide]}
-      >
-        <SurfaceCard style={[styles.infoCard, isWide && styles.infoCardWide]}>
-          <View style={styles.badge}>
-            <Ionicons color={colors.primary} name="leaf-outline" size={20} />
-            <Text style={styles.badgeText}>Your personal growth space</Text>
-          </View>
-
-          <Text style={styles.infoTitle}>Create an account built for momentum.</Text>
-          <Text style={styles.infoSubtitle}>
-            Track goals, build habits, and keep a conversation open with your AI coach
-            without bouncing between separate tools.
-          </Text>
-
-          <View style={styles.statGrid}>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>1</Text>
-              <Text style={styles.statLabel}>Unified dashboard</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? spacing.md : 0}
+      style={styles.keyboardAvoidingView}
+    >
+      <ScreenShell scroll edges={["top", "bottom"]} contentContainerStyle={styles.screenContent}>
+        <View style={[styles.layout, !isWide && styles.layoutNarrow, isWide && styles.layoutWide]}>
+          <SurfaceCard style={[styles.infoCard, isWide && styles.infoCardWide]}>
+            <View style={styles.badge}>
+              <Ionicons color={colors.primary} name="leaf-outline" size={20} />
+              <Text style={styles.badgeText}>Your personal growth space</Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>24/7</Text>
-              <Text style={styles.statLabel}>Coach availability</Text>
+
+            <Text style={styles.infoTitle}>Create an account built for momentum.</Text>
+            <Text style={styles.infoSubtitle}>
+              Track goals, build habits, and keep a conversation open with your AI coach
+              without bouncing between separate tools.
+            </Text>
+
+            <View style={styles.statGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>1</Text>
+                <Text style={styles.statLabel}>Unified dashboard</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>24/7</Text>
+                <Text style={styles.statLabel}>Coach availability</Text>
+              </View>
             </View>
-          </View>
-        </SurfaceCard>
-
-        <View style={[styles.formWrap, isWide && styles.formWrapWide]}>
-          <Text style={styles.formTitle}>Create your account</Text>
-          <Text style={styles.formSubtitle}>
-            Keep it simple for now. You can start adding goals and habits right after sign up.
-          </Text>
-
-          <SurfaceCard style={styles.formCard}>
-            <AppInput
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              label="Email"
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              value={email}
-            />
-
-            <AppInput
-              label="Password"
-              onChangeText={setPassword}
-              placeholder="Choose a secure password"
-              secureTextEntry
-              value={password}
-            />
-
-            <PrimaryButton loading={loading} onPress={handleSignup} title="Create account" />
           </SurfaceCard>
 
-          <Pressable onPress={() => navigation.navigate("Login")} style={styles.loginLink}>
-            <Text style={styles.loginLinkText}>
-              Already have an account? <Text style={styles.loginLinkAccent}>Sign in</Text>
+          <View style={[styles.formWrap, isWide && styles.formWrapWide]}>
+            <Text style={styles.formTitle}>Create your account</Text>
+            <Text style={styles.formSubtitle}>
+              Keep it simple for now. You can start adding goals and habits right after sign up.
             </Text>
-          </Pressable>
+
+            <SurfaceCard style={styles.formCard}>
+              <AppInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                label="Email"
+                onChangeText={setEmail}
+                placeholder="you@example.com"
+                value={email}
+              />
+
+              <AppInput
+                label="Password"
+                onChangeText={setPassword}
+                placeholder="Choose a secure password"
+                secureTextEntry
+                value={password}
+              />
+
+              <PrimaryButton loading={loading} onPress={handleSignup} title="Create account" />
+            </SurfaceCard>
+
+            <Pressable onPress={() => navigation.navigate("Login")} style={styles.loginLink}>
+              <Text style={styles.loginLinkText}>
+                Already have an account? <Text style={styles.loginLinkAccent}>Sign in</Text>
+              </Text>
+            </Pressable>
+          </View>
         </View>
-      </KeyboardAvoidingView>
-    </ScreenShell>
+      </ScreenShell>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   screenContent: {
     flexGrow: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
   },
   layout: {
-    flex: 1,
     gap: spacing.xl,
     width: "100%",
     maxWidth: 1100,
     alignSelf: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     paddingVertical: spacing.xl,
+  },
+  layoutNarrow: {
+    paddingTop: spacing.lg,
   },
   layoutWide: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 720,
   },
   infoCard: {
     gap: spacing.lg,
@@ -191,9 +201,13 @@ const styles = StyleSheet.create({
   },
   formWrap: {
     gap: spacing.md,
+    width: "100%",
+    maxWidth: 460,
+    alignSelf: "center",
   },
   formWrapWide: {
     width: 430,
+    alignSelf: "stretch",
   },
   formTitle: {
     color: colors.text,
@@ -208,6 +222,7 @@ const styles = StyleSheet.create({
   },
   formCard: {
     gap: spacing.md,
+    paddingVertical: spacing.lg,
   },
   loginLink: {
     paddingTop: spacing.xs,
